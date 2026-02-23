@@ -1,0 +1,48 @@
+import Constants from 'expo-constants';
+
+// Environment type
+type Environment = 'development' | 'staging' | 'production';
+
+// Determine current environment
+const ENV: Environment = (process.env.APP_ENV as Environment) || 'development';
+
+// Environment-specific API URLs
+const API_URLS: Record<Environment, string> = {
+  development: 'http://localhost:3000/api',
+  staging: 'https://staging.petchain.app/api',
+  production: 'https://api.petchain.app/api',
+};
+
+// App constants
+const CONSTANTS = {
+  TIMEOUT_MS: 10000, // 10 seconds
+  MAX_RETRY_ATTEMPTS: 3,
+  MAX_IMAGE_SIZE_MB: 5,
+  PAGINATION_LIMIT: 20,
+  TOKEN_EXPIRY_DAYS: 7,
+} as const;
+
+// Typed config object
+const config = {
+  env: ENV,
+  isDev: ENV === 'development',
+  isStaging: ENV === 'staging',
+  isProd: ENV === 'production',
+
+  api: {
+    baseUrl: process.env.API_BASE_URL || API_URLS[ENV],
+    timeout: CONSTANTS.TIMEOUT_MS,
+    maxRetries: CONSTANTS.MAX_RETRY_ATTEMPTS,
+  },
+
+  app: {
+    name: process.env.APP_NAME || 'PetChain',
+    version: Constants.expoConfig?.version || '1.0.0',
+    maxImageSizeMB: CONSTANTS.MAX_IMAGE_SIZE_MB,
+    paginationLimit: CONSTANTS.PAGINATION_LIMIT,
+    tokenExpiryDays: CONSTANTS.TOKEN_EXPIRY_DAYS,
+  },
+} as const;
+
+export type AppConfig = typeof config;
+export default config;
