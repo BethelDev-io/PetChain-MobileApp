@@ -141,6 +141,10 @@ export type CreateAppointmentPayload = Omit<
     "id" | "createdAt" | "updatedAt" | "cancelledAt" | "vet" | "pet"
 >;
 
+// Aliases for backward compatibility
+export type CreateAppointmentInput = CreateAppointmentPayload;
+export type UpdateAppointmentInput = UpdateAppointmentPayload;
+
 export type UpdateAppointmentPayload = Partial<
     Omit<Appointment, "id" | "createdAt" | "updatedAt" | "petId" | "vetId">
 >;

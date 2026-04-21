@@ -1,11 +1,12 @@
 import apiClient from "./apiClient";
 import { errorHandler } from "../middleware/errorHandler";
-import type {
+import {
   Appointment,
+  AppointmentStatus,
   CreateAppointmentInput,
   UpdateAppointmentInput,
   AppointmentResponse,
-  AppointmentsListResponse,
+  AppointmentListResponse,
 } from "../models/Appointment";
 
 const APPOINTMENTS_ENDPOINT = "/appointments";
@@ -13,10 +14,10 @@ const APPOINTMENTS_ENDPOINT = "/appointments";
 /**
  * Fetch all appointments, optionally filtered by petId.
  */
-export async function getAppointments(petId?: string): Promise<AppointmentsListResponse> {
+export async function getAppointments(petId?: string): Promise<AppointmentListResponse> {
   try {
     const params = petId ? { petId } : {};
-    const response = await apiClient.get<AppointmentsListResponse>(APPOINTMENTS_ENDPOINT, {
+    const response = await apiClient.get<AppointmentListResponse>(APPOINTMENTS_ENDPOINT, {
       params,
     });
     return response.data;
@@ -82,7 +83,7 @@ export async function updateAppointment(
  * Cancel an appointment (sets status to "cancelled").
  */
 export async function cancelAppointment(id: string): Promise<AppointmentResponse> {
-  return updateAppointment(id, { status: "cancelled" });
+  return updateAppointment(id, { status: AppointmentStatus.CANCELLED });
 }
 
 /**
@@ -91,21 +92,23 @@ export async function cancelAppointment(id: string): Promise<AppointmentResponse
  */
 export async function getUpcomingAppointments(
   petId?: string
-): Promise<AppointmentsListResponse> {
+): Promise<AppointmentListResponse> {
   try {
     const { data: appointments } = await getAppointments(petId);
     const list = Array.isArray(appointments) ? appointments : [];
 
     const now = new Date();
     const upcoming = list.filter((apt: Appointment) => {
-      if (apt.status === "cancelled" || apt.status === "completed") return false;
-      return new Date(apt.dateTime) >= now;
+      if (apt.status === AppointmentStatus.CANCELLED || apt.status === AppointmentStatus.COMPLETED) return false;
+      const appointmentDateTime = new Date(`${apt.date}T${apt.time}`);
+      return appointmentDateTime >= now;
     });
 
     return {
+      success: true,
       data: upcoming.sort(
         (a, b) =>
-          new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()
+          new Date(`${a.date}T${a.time}`).getTime() - new Date(`${b.date}T${b.time}`).getTime()
       ),
       total: upcoming.length,
     };

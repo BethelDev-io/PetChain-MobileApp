@@ -141,7 +141,7 @@ export async function removeMultiple(keys: string[]): Promise<void> {
  */
 export async function getAllKeys(): Promise<string[]> {
   try {
-    return await AsyncStorage.getAllKeys();
+    return [...(await AsyncStorage.getAllKeys())];
   } catch (error) {
     throw new StorageError(
       `Failed to get all keys: ${error instanceof Error ? error.message : 'Unknown error'}`,
