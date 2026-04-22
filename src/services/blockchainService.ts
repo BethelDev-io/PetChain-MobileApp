@@ -204,7 +204,7 @@ export const verifyRecordOnChain = async (
 
   const cacheKey = `verify:${normalizedRecordId}:${normalizedHash}`;
 
-  return queryWithCache<StellarRecordVerification>(cacheKey, async () => {
+  return queryWithCache<StellarRecordVerification>(cacheKey, async (): Promise<StellarRecordVerification> => {
     try {
       const response: AxiosResponse<StellarRecordVerification> = await axios.post(
         `${API_BASE_URL}/blockchain/records/verify`,
@@ -213,6 +213,7 @@ export const verifyRecordOnChain = async (
       return response.data;
     } catch (error) {
       handleBlockchainError(error);
+      throw error; // unreachable but satisfies type checker
     }
   });
 };
@@ -231,7 +232,7 @@ export const getTransactionDetails = async (
 
   const cacheKey = `tx:${normalizedTxHash}`;
 
-  return queryWithCache<StellarTransactionDetails>(cacheKey, async () => {
+  return queryWithCache<StellarTransactionDetails>(cacheKey, async (): Promise<StellarTransactionDetails> => {
     try {
       const response: AxiosResponse<StellarTransactionDetails> = await axios.get(
         `${API_BASE_URL}/blockchain/transactions/${encodeURIComponent(normalizedTxHash)}`
@@ -239,6 +240,7 @@ export const getTransactionDetails = async (
       return response.data;
     } catch (error) {
       handleBlockchainError(error);
+      throw error; // unreachable but satisfies type checker
     }
   });
 };

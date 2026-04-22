@@ -29,6 +29,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -45,10 +47,11 @@ export const scheduleMedicationReminder = async (medication: Medication): Promis
       data: { type: 'medication', medicationId: medication.id },
     },
     trigger: {
+      type: 'calendar',
       hour: new Date(medication.startDate).getHours(),
       minute: new Date(medication.startDate).getMinutes(),
       repeats: true,
-    },
+    } as Notifications.CalendarTriggerInput,
   });
   return notificationId;
 };
@@ -61,8 +64,9 @@ export const scheduleAppointmentNotification = async (appointment: Appointment):
       data: { type: 'appointment', appointmentId: appointment.id },
     },
     trigger: {
+      type: 'date',
       date: new Date(appointment.date.getTime() - 60 * 60 * 1000), // 1 hour before
-    },
+    } as Notifications.DateTriggerInput,
   });
   return notificationId;
 };
@@ -75,8 +79,9 @@ export const scheduleVaccinationReminder = async (vaccination: Vaccination): Pro
       data: { type: 'vaccination', vaccinationId: vaccination.id, petId: vaccination.petId },
     },
     trigger: {
+      type: 'date',
       date: vaccination.dueDate,
-    },
+    } as Notifications.DateTriggerInput,
   });
   return notificationId;
 };

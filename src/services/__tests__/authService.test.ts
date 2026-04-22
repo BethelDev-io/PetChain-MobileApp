@@ -49,15 +49,8 @@ jest.mock('react-native-keychain', () => ({
 
 // ─── Imports (after mocks) ────────────────────────────────────────────────────
 
-import * as axiosMod from 'axios';
-import {
-  login,
-  logout,
-  getToken,
-  isAuthenticated,
-  refreshToken,
-  AuthError,
-} from '../authService';
+import * as authService from '../authService';
+import { login, logout, getToken, isAuthenticated, refreshToken, AuthError } from '../authService';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -81,7 +74,8 @@ function toBase64Url(str: string): string {
 /** Build a minimal signed JWT with a given exp (seconds since epoch) */
 function makeJwt(exp: number): string {
   const header = toBase64Url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const payload = toBase64Url(JSON.stringify({ sub: 'user-1', exp, iat: 0 }));
+  // Use same iat as exp - 3600 to create a realistic token
+  const payload = toBase64Url(JSON.stringify({ sub: 'user-1', exp, iat: exp - 3600 }));
   return `${header}.${payload}.fakesig`;
 }
 
@@ -127,24 +121,21 @@ describe('login()', () => {
   });
 
   it('throws INVALID_CREDENTIALS on 401', async () => {
-    const err = Object.assign(new Error('401'), { response: { status: 401, data: {} } });
+    const err = Object.assign(new Error('401'), { isAxiosError: true, response: { status: 401, data: {} } });
     mockPost.mockRejectedValueOnce(err);
-    jest.spyOn(axiosMod, 'isAxiosError').mockReturnValueOnce(true);
 
     await expect(login('user@example.com', 'wrong')).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' });
   });
 
   it('throws RATE_LIMITED on 429', async () => {
-    const err = Object.assign(new Error('429'), { response: { status: 429, data: {} } });
+    const err = Object.assign(new Error('429'), { isAxiosError: true, response: { status: 429, data: {} } });
     mockPost.mockRejectedValueOnce(err);
-    jest.spyOn(axiosMod, 'isAxiosError').mockReturnValueOnce(true);
 
     await expect(login('user@example.com', 'Password1')).rejects.toMatchObject({ code: 'RATE_LIMITED' });
   });
 
   it('throws NETWORK_ERROR on non-axios error', async () => {
     mockPost.mockRejectedValueOnce(new Error('Network failure'));
-    jest.spyOn(axiosMod, 'isAxiosError').mockReturnValueOnce(false);
 
     await expect(login('user@example.com', 'Password1')).rejects.toMatchObject({ code: 'NETWORK_ERROR' });
   });
@@ -242,9 +233,8 @@ describe('refreshToken()', () => {
     keychainStore['com.petchain.auth'] = FUTURE_TOKEN;
     keychainStore['com.petchain.auth.refresh'] = 'refresh-abc';
 
-    const err = Object.assign(new Error('401'), { response: { status: 401, data: {} } });
+    const err = Object.assign(new Error('401'), { isAxiosError: true, response: { status: 401, data: {} } });
     mockPost.mockRejectedValueOnce(err);
-    jest.spyOn(axiosMod, 'isAxiosError').mockReturnValueOnce(true);
 
     await expect(refreshToken()).rejects.toMatchObject({ code: 'REFRESH_TOKEN_EXPIRED' });
     expect(await getToken()).toBeNull();
@@ -253,7 +243,6 @@ describe('refreshToken()', () => {
   it('throws NETWORK_ERROR on non-axios failure and clears tokens', async () => {
     keychainStore['com.petchain.auth.refresh'] = 'refresh-abc';
     mockPost.mockRejectedValueOnce(new Error('timeout'));
-    jest.spyOn(axiosMod, 'isAxiosError').mockReturnValueOnce(false);
 
     await expect(refreshToken()).rejects.toMatchObject({ code: 'NETWORK_ERROR' });
     expect(await getToken()).toBeNull();
