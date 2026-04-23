@@ -1,6 +1,6 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { type AxiosInstance } from 'axios';
 import * as Keychain from 'react-native-keychain';
-import config from '../config';
+
 import type {
   LoginRequest,
   LoginResponse,
@@ -9,6 +9,7 @@ import type {
   RefreshTokenResponse,
 } from '../../backend/types/api';
 import { API_ENDPOINTS } from '../../backend/types/api';
+import config from '../config';
 
 // ─── Storage keys ────────────────────────────────────────────────────────────
 
@@ -46,7 +47,7 @@ export interface StoredSession {
 
 type OAuthProvider = 'google' | 'apple' | 'facebook';
 
-const OAUTH_ENDPOINTS: Record<OAuthProvider, string> = {
+const _OAUTH_ENDPOINTS: Record<OAuthProvider, string> = {
   google: '/auth/oauth/google',
   apple: '/auth/oauth/apple',
   facebook: '/auth/oauth/facebook',
@@ -160,20 +161,14 @@ async function clearTokens(): Promise<void> {
  * Authenticate with email + password.
  * Stores the JWT (and optional refresh token) securely on success.
  */
-export async function login(
-  email: string,
-  password: string,
-): Promise<AuthSession> {
+export async function login(email: string, password: string): Promise<AuthSession> {
   if (!email || !password) {
     throw new AuthError('Email and password are required', 'MISSING_CREDENTIALS');
   }
 
   try {
     const payload: LoginRequest = { email, password };
-    const { data } = await authClient.post<LoginResponse>(
-      API_ENDPOINTS.AUTH_LOGIN,
-      payload,
-    );
+    const { data } = await authClient.post<LoginResponse>(API_ENDPOINTS.AUTH_LOGIN, payload);
 
     await storeToken(data.token);
     if (data.refreshToken) {
@@ -192,7 +187,8 @@ export async function login(
       const axiosErr = err as AxiosLikeError;
       const status = axiosErr.response?.status;
       if (status === 401) throw new AuthError('Invalid credentials', 'INVALID_CREDENTIALS');
-      if (status === 429) throw new AuthError('Too many attempts, please try again later', 'RATE_LIMITED');
+      if (status === 429)
+        throw new AuthError('Too many attempts, please try again later', 'RATE_LIMITED');
       const msg = axiosErr.response?.data?.error?.message;
       throw new AuthError(msg ?? 'Login failed', 'LOGIN_FAILED');
     }
@@ -202,17 +198,11 @@ export async function login(
 
 export async function register(payload: RegisterRequest): Promise<AuthSession> {
   if (!payload.email || !payload.password || !payload.name) {
-    throw new AuthError(
-      'Name, email, and password are required',
-      'MISSING_REGISTRATION_FIELDS',
-    );
+    throw new AuthError('Name, email, and password are required', 'MISSING_REGISTRATION_FIELDS');
   }
 
   try {
-    const { data } = await authClient.post<RegisterResponse>(
-      API_ENDPOINTS.AUTH_REGISTER,
-      payload,
-    );
+    const { data } = await authClient.post<RegisterResponse>(API_ENDPOINTS.AUTH_REGISTER, payload);
 
     await storeToken(data.token);
     if (data.refreshToken) {
@@ -300,10 +290,9 @@ export async function refreshToken(): Promise<string> {
   }
 
   try {
-    const { data } = await authClient.post<RefreshTokenResponse>(
-      API_ENDPOINTS.AUTH_REFRESH,
-      { refreshToken: storedRefresh },
-    );
+    const { data } = await authClient.post<RefreshTokenResponse>(API_ENDPOINTS.AUTH_REFRESH, {
+      refreshToken: storedRefresh,
+    });
 
     await storeToken(data.token);
     if (data.refreshToken) {

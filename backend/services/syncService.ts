@@ -6,6 +6,14 @@ export type SyncEntityType = 'pet' | 'appointment' | 'medication' | 'medicalReco
 export type SyncAction = 'create' | 'update' | 'delete';
 export type ConflictResolutionStrategy = 'last-write-wins' | 'manual';
 
+/** Minimal typed API client shape used by sync operations */
+export interface ApiClientLike {
+  post: (url: string, data?: unknown) => Promise<{ data: unknown }>;
+  put: (url: string, data?: unknown) => Promise<{ data: unknown }>;
+  delete: (url: string) => Promise<{ data: unknown }>;
+  get: (url: string) => Promise<{ data: unknown }>;
+}
+
 export interface SyncItem {
   id: string;
   type: SyncEntityType;
@@ -54,12 +62,16 @@ class SyncService {
 
   // ── Queue management ─────────────────────────────────────────────────────────
 
-  async addToQueue(type: SyncEntityType, action: SyncAction, data: Record<string, unknown>): Promise<void> {
+  async addToQueue(
+    type: SyncEntityType,
+    action: SyncAction,
+    data: Record<string, unknown>,
+  ): Promise<void> {
     const queue = await this.getQueue();
 
     const entityId = data.id as string | undefined;
     const existingIdx = entityId
-      ? queue.findIndex(i => i.data.id === entityId && i.type === type && i.action === action)
+      ? queue.findIndex((i) => i.data.id === entityId && i.type === type && i.action === action)
       : -1;
 
     const item: SyncItem = {
@@ -83,7 +95,12 @@ class SyncService {
 
   // ── Push local changes to server ─────────────────────────────────────────────
 
-  async sync(apiClient: { post: Function; put: Function; delete: Function; get: Function }): Promise<void> {
+  async sync(apiClient: {
+    post: ApiClientLike['post'];
+    put: ApiClientLike['put'];
+    delete: ApiClientLike['delete'];
+    get: ApiClientLike['get'];
+  }): Promise<void> {
     const status = await this.getStatus();
     if (status.isSyncing) return;
 
@@ -108,15 +125,15 @@ class SyncService {
       isSyncing: false,
       lastSync: Date.now(),
       pendingCount: failed.length,
-      failedCount: failed.filter(i => i.retries >= MAX_RETRIES).length,
+      failedCount: failed.filter((i) => i.retries >= MAX_RETRIES).length,
     });
   }
 
   // ── Pull from server ─────────────────────────────────────────────────────────
 
   async pull(
-    apiClient: { get: Function },
-    types: SyncEntityType[] = ['pet', 'appointment', 'medication']
+    apiClient: { get: ApiClientLike['get'] },
+    types: SyncEntityType[] = ['pet', 'appointment', 'medication'],
   ): Promise<void> {
     for (const type of types) {
       try {
@@ -145,7 +162,7 @@ class SyncService {
   async handleConflict(
     localData: Record<string, unknown>,
     serverData: Record<string, unknown>,
-    strategy: ConflictResolutionStrategy = 'last-write-wins'
+    strategy: ConflictResolutionStrategy = 'last-write-wins',
   ): Promise<Record<string, unknown>> {
     const localTs = (localData.updatedAt as number) || (localData.timestamp as number) || 0;
     const serverTs = (serverData.updatedAt as number) || (serverData.timestamp as number) || 0;
@@ -175,10 +192,10 @@ class SyncService {
   async resolveManualConflict(
     entityId: string,
     resolution: 'local' | 'server',
-    apiClient?: { put: Function }
+    apiClient?: { put: ApiClientLike['put'] },
   ): Promise<void> {
     const conflicts = await this.getConflicts();
-    const conflict = conflicts.find(c => c.entityId === entityId);
+    const conflict = conflicts.find((c) => c.entityId === entityId);
     if (!conflict) return;
 
     const resolved = resolution === 'local' ? conflict.localData : conflict.serverData;
@@ -204,7 +221,7 @@ class SyncService {
   onStatusChange(listener: (status: SyncStatus) => void): () => void {
     this.statusListeners.push(listener);
     return () => {
-      this.statusListeners = this.statusListeners.filter(l => l !== listener);
+      this.statusListeners = this.statusListeners.filter((l) => l !== listener);
     };
   }
 
@@ -217,7 +234,11 @@ class SyncService {
 
   private async syncItem(
     item: SyncItem,
-    apiClient: { post: Function; put: Function; delete: Function }
+    apiClient: {
+      post: ApiClientLike['post'];
+      put: ApiClientLike['put'];
+      delete: ApiClientLike['delete'];
+    },
   ): Promise<void> {
     const endpoint = `/${item.type}s`;
     switch (item.action) {
@@ -242,12 +263,12 @@ class SyncService {
     const current = await this.getStatus();
     const next = { ...current, ...updates };
     await AsyncStorage.setItem(SYNC_STATUS_KEY, JSON.stringify(next));
-    this.statusListeners.forEach(l => l(next));
+    this.statusListeners.forEach((l) => l(next));
   }
 
   private async addConflict(conflict: ConflictRecord): Promise<void> {
     const conflicts = await this.getConflicts();
-    const idx = conflicts.findIndex(c => c.entityId === conflict.entityId);
+    const idx = conflicts.findIndex((c) => c.entityId === conflict.entityId);
     if (idx >= 0) conflicts[idx] = conflict;
     else conflicts.push(conflict);
     await AsyncStorage.setItem(CONFLICTS_KEY, JSON.stringify(conflicts));
@@ -257,7 +278,7 @@ class SyncService {
     const conflicts = await this.getConflicts();
     await AsyncStorage.setItem(
       CONFLICTS_KEY,
-      JSON.stringify(conflicts.filter(c => c.entityId !== entityId))
+      JSON.stringify(conflicts.filter((c) => c.entityId !== entityId)),
     );
   }
 }

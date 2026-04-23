@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,13 +7,10 @@ import {
   TouchableOpacity,
   Alert,
   StatusBar,
-  Dimensions,
   Platform,
   PermissionsAndroid,
   Linking,
 } from 'react-native';
-
-const { width, height } = Dimensions.get('window');
 
 interface QRScannerScreenProps {
   onScanSuccess: (data: string) => void;
@@ -29,7 +26,6 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanning, setScanning] = useState(false);
   const [torchEnabled, setTorchEnabled] = useState(false);
-  const scannerRef = useRef<any>(null);
 
   useEffect(() => {
     requestCameraPermission();
@@ -41,16 +37,13 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
   const requestCameraPermission = async () => {
     try {
       if (Platform.OS === 'android') {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.CAMERA,
-          {
-            title: 'Camera Permission',
-            message: 'PetChain needs camera permission to scan QR codes',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'OK',
-          },
-        );
+        const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA, {
+          title: 'Camera Permission',
+          message: 'PetChain needs camera permission to scan QR codes',
+          buttonNeutral: 'Ask Me Later',
+          buttonNegative: 'Cancel',
+          buttonPositive: 'OK',
+        });
         setHasPermission(granted === PermissionsAndroid.RESULTS.GRANTED);
       } else {
         // iOS permissions are handled differently
@@ -62,12 +55,12 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
     }
   };
 
-  const handleBarCodeRead = (event: any) => {
+  const _handleBarCodeRead = (event: any) => {
     const { data } = event;
-    
+
     if (data && scanning) {
       setScanning(false);
-      
+
       // Validate QR code data format
       if (isValidPetChainQR(data)) {
         onScanSuccess(data);
@@ -89,7 +82,7 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
               style: 'cancel',
               onPress: onClose,
             },
-          ]
+          ],
         );
       }
     }
@@ -102,7 +95,7 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
       if (data.startsWith('petchain://record/')) {
         return true;
       }
-      
+
       // Try to parse as JSON
       const parsed = JSON.parse(data);
       return parsed && (parsed.recordId || parsed.petId || parsed.vetId);
@@ -134,7 +127,7 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
           style: 'cancel',
           onPress: onClose,
         },
-      ]
+      ],
     );
   };
 
@@ -151,10 +144,7 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
       return (
         <View style={styles.permissionContainer}>
           <Text style={styles.permissionText}>Camera permission denied</Text>
-          <TouchableOpacity
-            style={styles.permissionButton}
-            onPress={handlePermissionDenied}
-          >
+          <TouchableOpacity style={styles.permissionButton} onPress={handlePermissionDenied}>
             <Text style={styles.permissionButtonText}>Enable Camera</Text>
           </TouchableOpacity>
         </View>
@@ -175,19 +165,11 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
         </View>
 
         <View style={styles.controlsContainer}>
-          <TouchableOpacity
-            style={styles.controlButton}
-            onPress={toggleTorch}
-          >
-            <Text style={styles.controlButtonText}>
-              {torchEnabled ? '🔦' : '🔦'}
-            </Text>
+          <TouchableOpacity style={styles.controlButton} onPress={toggleTorch}>
+            <Text style={styles.controlButtonText}>{torchEnabled ? '🔦' : '🔦'}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.controlButton}
-            onPress={onManualEntry}
-          >
+          <TouchableOpacity style={styles.controlButton} onPress={onManualEntry}>
             <Text style={styles.controlButtonText}>📝</Text>
           </TouchableOpacity>
         </View>
@@ -210,13 +192,8 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
   const renderFooter = () => {
     return (
       <View style={styles.footer}>
-        <Text style={styles.footerText}>
-          Scan a PetChain QR code to access pet records
-        </Text>
-        <TouchableOpacity
-          style={styles.manualEntryButton}
-          onPress={onManualEntry}
-        >
+        <Text style={styles.footerText}>Scan a PetChain QR code to access pet records</Text>
+        <TouchableOpacity style={styles.manualEntryButton} onPress={onManualEntry}>
           <Text style={styles.manualEntryButtonText}>Manual Entry</Text>
         </TouchableOpacity>
       </View>
@@ -226,13 +203,11 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
-      
+
       {renderHeader()}
-      
-      <View style={styles.scannerContainer}>
-        {renderCameraView()}
-      </View>
-      
+
+      <View style={styles.scannerContainer}>{renderCameraView()}</View>
+
       {renderFooter()}
     </SafeAreaView>
   );
