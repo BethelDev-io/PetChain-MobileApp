@@ -1,4 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import apiClient from './apiClient';
+import { networkMonitor } from '../utils/networkMonitor';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,9 +56,10 @@ class SyncService {
 
   // ── Queue management ─────────────────────────────────────────────────────────
 
-  async addToQueue(type: SyncEntityType, action: SyncAction, data: Record<string, unknown>): Promise<void> {
+  async enqueue(type: SyncEntityType, action: SyncAction, data: Record<string, unknown>): Promise<void> {
     const queue = await this.getQueue();
 
+    // Deduplicate: if same entity + action already queued, replace it
     const entityId = data.id as string | undefined;
     const existingIdx = entityId
       ? queue.findIndex(i => i.data.id === entityId && i.type === type && i.action === action)
@@ -81,9 +84,37 @@ class SyncService {
     await this.patchStatus({ pendingCount: queue.length });
   }
 
-  // ── Push local changes to server ─────────────────────────────────────────────
+  // ── Pull from server ─────────────────────────────────────────────────────────
 
-  async sync(apiClient: { post: Function; put: Function; delete: Function; get: Function }): Promise<void> {
+  async pull(types: SyncEntityType[] = ['pet', 'appointment', 'medication']): Promise<void> {
+    for (const type of types) {
+      try {
+        const response = await apiClient.get<Record<string, unknown>[]>(`/${type}s`);
+        const serverItems = response.data;
+        // Persist each item locally
+        for (const item of serverItems) {
+          const key = `@${type}_${item.id}`;
+          const localRaw = await AsyncStorage.getItem(key);
+          if (localRaw) {
+            const local = JSON.parse(localRaw) as Record<string, unknown>;
+            const resolved = await this.resolveConflict(type, local, item, 'last-write-wins');
+            await AsyncStorage.setItem(key, JSON.stringify(resolved));
+          } else {
+            await AsyncStorage.setItem(key, JSON.stringify(item));
+          }
+        }
+      } catch {
+        // Non-fatal: continue with other types
+      }
+    }
+  }
+
+  // ── Push local changes ───────────────────────────────────────────────────────
+
+  async push(): Promise<void> {
+    const online = await networkMonitor.isOnline();
+    if (!online) return;
+
     const status = await this.getStatus();
     if (status.isSyncing) return;
 
@@ -94,7 +125,7 @@ class SyncService {
 
     for (const item of queue) {
       try {
-        await this.syncItem(item, apiClient);
+        await this.syncItem(item);
       } catch {
         item.retries += 1;
         if (item.retries < MAX_RETRIES) {
@@ -112,37 +143,19 @@ class SyncService {
     });
   }
 
-  // ── Pull from server ─────────────────────────────────────────────────────────
+  // ── Full sync (pull then push) ────────────────────────────────────────────────
 
-  async pull(
-    apiClient: { get: Function },
-    types: SyncEntityType[] = ['pet', 'appointment', 'medication']
-  ): Promise<void> {
-    for (const type of types) {
-      try {
-        const response = await apiClient.get(`/${type}s`);
-        const serverItems: Record<string, unknown>[] = response.data;
-
-        for (const item of serverItems) {
-          const key = `@${type}_${item.id}`;
-          const localRaw = await AsyncStorage.getItem(key);
-          if (localRaw) {
-            const local = JSON.parse(localRaw) as Record<string, unknown>;
-            const resolved = await this.handleConflict(local, item);
-            await AsyncStorage.setItem(key, JSON.stringify(resolved));
-          } else {
-            await AsyncStorage.setItem(key, JSON.stringify(item));
-          }
-        }
-      } catch {
-        // Non-fatal: continue with other types
-      }
-    }
+  async sync(): Promise<void> {
+    const online = await networkMonitor.isOnline();
+    if (!online) return;
+    await this.pull();
+    await this.push();
   }
 
   // ── Conflict resolution ──────────────────────────────────────────────────────
 
-  async handleConflict(
+  async resolveConflict(
+    type: SyncEntityType,
     localData: Record<string, unknown>,
     serverData: Record<string, unknown>,
     strategy: ConflictResolutionStrategy = 'last-write-wins'
@@ -154,17 +167,17 @@ class SyncService {
       return serverTs >= localTs ? serverData : localData;
     }
 
-    // Manual: store conflict for later resolution
+    // Manual: store conflict for user resolution
     const conflict: ConflictRecord = {
       entityId: (localData.id as string) || '',
-      type: 'pet', // caller should pass type; defaulting here
+      type,
       localData,
       serverData,
       localTimestamp: localTs,
       serverTimestamp: serverTs,
     };
     await this.addConflict(conflict);
-    return serverData;
+    return serverData; // default to server until user resolves
   }
 
   async getConflicts(): Promise<ConflictRecord[]> {
@@ -172,11 +185,7 @@ class SyncService {
     return stored ? JSON.parse(stored) : [];
   }
 
-  async resolveManualConflict(
-    entityId: string,
-    resolution: 'local' | 'server',
-    apiClient?: { put: Function }
-  ): Promise<void> {
+  async resolveManualConflict(entityId: string, resolution: 'local' | 'server'): Promise<void> {
     const conflicts = await this.getConflicts();
     const conflict = conflicts.find(c => c.entityId === entityId);
     if (!conflict) return;
@@ -185,8 +194,9 @@ class SyncService {
     const key = `@${conflict.type}_${entityId}`;
     await AsyncStorage.setItem(key, JSON.stringify(resolved));
 
-    if (resolution === 'local' && apiClient) {
-      await apiClient.put(`/${conflict.type}s/${entityId}`, resolved);
+    // If choosing local, push it to server
+    if (resolution === 'local') {
+      await this.enqueue(conflict.type, 'update', resolved);
     }
 
     await this.removeConflict(entityId);
@@ -196,7 +206,7 @@ class SyncService {
 
   async getStatus(): Promise<SyncStatus> {
     const stored = await AsyncStorage.getItem(SYNC_STATUS_KEY);
-    const status: SyncStatus = stored ? JSON.parse(stored) : { ...DEFAULT_STATUS };
+    const status: SyncStatus = stored ? JSON.parse(stored) : DEFAULT_STATUS;
     status.conflicts = await this.getConflicts();
     return status;
   }
@@ -215,10 +225,7 @@ class SyncService {
 
   // ── Private helpers ──────────────────────────────────────────────────────────
 
-  private async syncItem(
-    item: SyncItem,
-    apiClient: { post: Function; put: Function; delete: Function }
-  ): Promise<void> {
+  private async syncItem(item: SyncItem): Promise<void> {
     const endpoint = `/${item.type}s`;
     switch (item.action) {
       case 'create':
@@ -262,4 +269,5 @@ class SyncService {
   }
 }
 
-export default new SyncService();
+export const syncService = new SyncService();
+export default syncService;
