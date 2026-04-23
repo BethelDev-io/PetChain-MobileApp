@@ -50,7 +50,20 @@ jest.mock('react-native-keychain', () => ({
 // ─── Imports (after mocks) ────────────────────────────────────────────────────
 
 import * as authService from '../authService';
-import { login, logout, getToken, isAuthenticated, refreshToken, AuthError } from '../authService';
+import {
+  login,
+  logout,
+  getToken,
+  isAuthenticated,
+  refreshToken,
+  register,
+  requestPasswordReset,
+  resetPassword,
+  verifyEmail,
+  getSession,
+  isBiometricAuthenticationAvailable,
+  AuthError,
+} from '../authService';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -146,6 +159,27 @@ describe('login()', () => {
 
     const session = await login('user@example.com', 'Password1');
     expect(session.refreshToken).toBeUndefined();
+  });
+});
+
+describe('register()', () => {
+  it('creates account and stores tokens on success', async () => {
+    mockPost.mockResolvedValueOnce({ data: MOCK_LOGIN_RESPONSE });
+
+    const session = await register({
+      email: 'new@example.com',
+      name: 'New User',
+      password: 'Password1',
+    });
+
+    expect(session.user.email).toBe('user@example.com');
+    expect(await getToken()).toBe(FUTURE_TOKEN);
+  });
+
+  it('throws MISSING_REGISTRATION_FIELDS when required fields are missing', async () => {
+    await expect(
+      register({ email: '', name: 'User', password: 'Password1' }),
+    ).rejects.toMatchObject({ code: 'MISSING_REGISTRATION_FIELDS' });
   });
 });
 
@@ -246,6 +280,44 @@ describe('refreshToken()', () => {
 
     await expect(refreshToken()).rejects.toMatchObject({ code: 'NETWORK_ERROR' });
     expect(await getToken()).toBeNull();
+  });
+});
+
+describe('password reset + email verification', () => {
+  it('requests password reset with valid email', async () => {
+    mockPost.mockResolvedValueOnce({ data: { success: true } });
+    await expect(requestPasswordReset('user@example.com')).resolves.toBeUndefined();
+  });
+
+  it('resets password with a valid token', async () => {
+    mockPost.mockResolvedValueOnce({ data: { success: true } });
+    await expect(resetPassword('token-123', 'StrongPass1')).resolves.toBeUndefined();
+  });
+
+  it('verifies email with token', async () => {
+    mockPost.mockResolvedValueOnce({ data: { success: true } });
+    await expect(verifyEmail('verify-token-123')).resolves.toBeUndefined();
+  });
+
+  it('throws MISSING_EMAIL when requesting reset with empty email', async () => {
+    await expect(requestPasswordReset('')).rejects.toMatchObject({ code: 'MISSING_EMAIL' });
+  });
+});
+
+describe('session management + biometric availability', () => {
+  it('returns current session details when token exists', async () => {
+    keychainStore['com.petchain.auth'] = FUTURE_TOKEN;
+    keychainStore['com.petchain.auth.refresh'] = 'refresh-abc';
+
+    const session = await getSession();
+    expect(session).toMatchObject({
+      token: FUTURE_TOKEN,
+      refreshToken: 'refresh-abc',
+    });
+  });
+
+  it('returns false when biometric api is unavailable', async () => {
+    expect(await isBiometricAuthenticationAvailable()).toBe(false);
   });
 });
 

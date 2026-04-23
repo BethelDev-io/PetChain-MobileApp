@@ -4,6 +4,8 @@ import config from '../config';
 import type {
   LoginRequest,
   LoginResponse,
+  RegisterRequest,
+  RegisterResponse,
   RefreshTokenResponse,
 } from '../../backend/types/api';
 import { API_ENDPOINTS } from '../../backend/types/api';
@@ -34,7 +36,12 @@ export interface AuthSession {
   user: LoginResponse['user'];
   token: string;
   refreshToken?: string;
-  expiresIn: number;
+  expiresIn?: number;
+}
+
+export interface StoredSession {
+  token: string;
+  refreshToken?: string;
 }
 
 interface JwtPayload {
@@ -65,31 +72,25 @@ function decodeJwtPayload(token: string): JwtPayload {
     throw new AuthError('Malformed JWT', 'INVALID_TOKEN');
   }
   try {
-    // Pure ES2020 base64url decode — no Buffer, no atob, works in Node and React Native.
     const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
     const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
-    // Decode base64 to bytes using a lookup table approach
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-    let bytes = '';
-    let i = 0;
-    while (i < padded.length) {
-      const a = chars.indexOf(padded[i++]);
-      const b = chars.indexOf(padded[i++]);
-      const c = chars.indexOf(padded[i++]);
-      const d = chars.indexOf(padded[i++]);
-      bytes += String.fromCharCode(
-        (a << 2) | (b >> 4),
-        ((b & 15) << 4) | (c >> 2),
-        ((c & 3) << 6) | d,
-      );
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+    const bytes: number[] = [];
+    for (let i = 0; i < padded.length; i += 4) {
+      const c1 = chars.indexOf(padded[i]);
+      const c2 = chars.indexOf(padded[i + 1]);
+      const c3 = chars.indexOf(padded[i + 2]);
+      const c4 = chars.indexOf(padded[i + 3]);
+      if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0) {
+        throw new AuthError('Failed to decode JWT payload', 'INVALID_TOKEN');
+      }
+      const chunk = (c1 << 18) | (c2 << 12) | ((c3 & 63) << 6) | (c4 & 63);
+      bytes.push((chunk >> 16) & 255);
+      if (padded[i + 2] !== '=') bytes.push((chunk >> 8) & 255);
+      if (padded[i + 3] !== '=') bytes.push(chunk & 255);
     }
-    // Strip null bytes added by padding
-    const trimmed = bytes.replace(/\0+$/, '');
-    // Decode UTF-8 bytes to string
     const raw = decodeURIComponent(
-      Array.from(trimmed)
-        .map((ch) => '%' + ch.charCodeAt(0).toString(16).padStart(2, '0'))
-        .join(''),
+      bytes.map((b) => '%' + b.toString(16).padStart(2, '0')).join(''),
     );
     return JSON.parse(raw) as JwtPayload;
   } catch {
@@ -191,6 +192,39 @@ export async function login(
   }
 }
 
+export async function register(payload: RegisterRequest): Promise<AuthSession> {
+  if (!payload.email || !payload.password || !payload.name) {
+    throw new AuthError(
+      'Name, email, and password are required',
+      'MISSING_REGISTRATION_FIELDS',
+    );
+  }
+
+  try {
+    const { data } = await authClient.post<RegisterResponse>(
+      API_ENDPOINTS.AUTH_REGISTER,
+      payload,
+    );
+
+    await storeToken(data.token);
+    if (data.refreshToken) {
+      await storeRefreshToken(data.refreshToken);
+    }
+
+    return {
+      user: data.user,
+      token: data.token,
+      refreshToken: data.refreshToken,
+    };
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err)) {
+      const msg = (err as AxiosLikeError).response?.data?.error?.message;
+      throw new AuthError(msg ?? 'Registration failed', 'REGISTRATION_FAILED');
+    }
+    throw new AuthError('Network error during registration', 'NETWORK_ERROR');
+  }
+}
+
 /**
  * Clear all stored tokens and end the local session.
  */
@@ -283,5 +317,91 @@ export async function refreshToken(): Promise<string> {
       throw new AuthError(msg ?? 'Token refresh failed', 'REFRESH_FAILED');
     }
     throw new AuthError('Network error during token refresh', 'NETWORK_ERROR');
+  }
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  if (!email) {
+    throw new AuthError('Email is required', 'MISSING_EMAIL');
+  }
+
+  try {
+    await authClient.post(API_ENDPOINTS.AUTH_FORGOT_PASSWORD, { email });
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err)) {
+      const msg = (err as AxiosLikeError).response?.data?.error?.message;
+      throw new AuthError(msg ?? 'Password reset request failed', 'PASSWORD_RESET_REQUEST_FAILED');
+    }
+    throw new AuthError('Network error while requesting password reset', 'NETWORK_ERROR');
+  }
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  if (!token || !newPassword) {
+    throw new AuthError('Reset token and new password are required', 'MISSING_RESET_INPUT');
+  }
+
+  try {
+    await authClient.post(API_ENDPOINTS.AUTH_RESET_PASSWORD, {
+      token,
+      newPassword,
+    });
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err)) {
+      const msg = (err as AxiosLikeError).response?.data?.error?.message;
+      throw new AuthError(msg ?? 'Password reset failed', 'PASSWORD_RESET_FAILED');
+    }
+    throw new AuthError('Network error while resetting password', 'NETWORK_ERROR');
+  }
+}
+
+export async function verifyEmail(token: string): Promise<void> {
+  if (!token) {
+    throw new AuthError('Verification token is required', 'MISSING_VERIFICATION_TOKEN');
+  }
+
+  try {
+    await authClient.post(API_ENDPOINTS.AUTH_VERIFY_EMAIL, { token });
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err)) {
+      const msg = (err as AxiosLikeError).response?.data?.error?.message;
+      throw new AuthError(msg ?? 'Email verification failed', 'EMAIL_VERIFICATION_FAILED');
+    }
+    throw new AuthError('Network error while verifying email', 'NETWORK_ERROR');
+  }
+}
+
+export async function getSession(): Promise<StoredSession | null> {
+  const token = await getToken();
+  if (!token) return null;
+
+  let refresh: string | null = null;
+  try {
+    const refreshCreds = await Keychain.getGenericPassword({
+      service: KEYCHAIN_REFRESH_SERVICE,
+    });
+    refresh = refreshCreds ? refreshCreds.password : null;
+  } catch {
+    refresh = null;
+  }
+
+  return {
+    token,
+    refreshToken: refresh ?? undefined,
+  };
+}
+
+export async function isBiometricAuthenticationAvailable(): Promise<boolean> {
+  const maybeKeychain = Keychain as unknown as {
+    getSupportedBiometryType?: () => Promise<unknown>;
+  };
+  if (!maybeKeychain.getSupportedBiometryType) {
+    return false;
+  }
+  try {
+    const biometryType = await maybeKeychain.getSupportedBiometryType();
+    return !!biometryType;
+  } catch {
+    return false;
   }
 }
