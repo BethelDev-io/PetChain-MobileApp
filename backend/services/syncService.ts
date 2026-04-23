@@ -6,6 +6,14 @@ export type SyncEntityType = 'pet' | 'appointment' | 'medication' | 'medicalReco
 export type SyncAction = 'create' | 'update' | 'delete';
 export type ConflictResolutionStrategy = 'last-write-wins' | 'manual';
 
+/** Minimal typed API client shape used by sync operations */
+export interface ApiClientLike {
+  post: (url: string, data?: unknown) => Promise<{ data: unknown }>;
+  put: (url: string, data?: unknown) => Promise<{ data: unknown }>;
+  delete: (url: string) => Promise<{ data: unknown }>;
+  get: (url: string) => Promise<{ data: unknown }>;
+}
+
 export interface SyncItem {
   id: string;
   type: SyncEntityType;
@@ -83,7 +91,12 @@ class SyncService {
 
   // ── Push local changes to server ─────────────────────────────────────────────
 
-  async sync(apiClient: { post: Function; put: Function; delete: Function; get: Function }): Promise<void> {
+  async sync(apiClient: {
+    post: ApiClientLike['post'];
+    put: ApiClientLike['put'];
+    delete: ApiClientLike['delete'];
+    get: ApiClientLike['get'];
+  }): Promise<void> {
     const status = await this.getStatus();
     if (status.isSyncing) return;
 
@@ -115,13 +128,13 @@ class SyncService {
   // ── Pull from server ─────────────────────────────────────────────────────────
 
   async pull(
-    apiClient: { get: Function },
-    types: SyncEntityType[] = ['pet', 'appointment', 'medication']
+    apiClient: { get: ApiClientLike['get'] },
+    types: SyncEntityType[] = ['pet', 'appointment', 'medication'],
   ): Promise<void> {
     for (const type of types) {
       try {
         const response = await apiClient.get(`/${type}s`);
-        const serverItems: Record<string, unknown>[] = response.data;
+        const serverItems = (response.data as Record<string, unknown>[]);
 
         for (const item of serverItems) {
           const key = `@${type}_${item.id}`;
@@ -175,7 +188,7 @@ class SyncService {
   async resolveManualConflict(
     entityId: string,
     resolution: 'local' | 'server',
-    apiClient?: { put: Function }
+    apiClient?: { put: ApiClientLike['put'] },
   ): Promise<void> {
     const conflicts = await this.getConflicts();
     const conflict = conflicts.find(c => c.entityId === entityId);
@@ -217,7 +230,11 @@ class SyncService {
 
   private async syncItem(
     item: SyncItem,
-    apiClient: { post: Function; put: Function; delete: Function }
+    apiClient: {
+      post: ApiClientLike['post'];
+      put: ApiClientLike['put'];
+      delete: ApiClientLike['delete'];
+    },
   ): Promise<void> {
     const endpoint = `/${item.type}s`;
     switch (item.action) {

@@ -49,7 +49,6 @@ jest.mock('react-native-keychain', () => ({
 
 // ─── Imports (after mocks) ────────────────────────────────────────────────────
 
-import * as authService from '../authService';
 import {
   login,
   logout,

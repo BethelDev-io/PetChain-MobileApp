@@ -104,9 +104,10 @@ function toPetServiceError(error: unknown): PetServiceError {
   return new PetServiceError('Unexpected pet service error', 'UNKNOWN_ERROR');
 }
 
-function replacePathParam(template: string, key: string, value: string): string {
-  return template.replace(`:${key}`, encodeURIComponent(value));
-}
+// replacePathParam is reserved for future parameterised endpoint helpers
+// function replacePathParam(template: string, key: string, value: string): string {
+//   return template.replace(`:${key}`, encodeURIComponent(value));
+// }
 
 function extractPetIdFromQrScan(scanData: string): string | null {
   const trimmed = scanData.trim();

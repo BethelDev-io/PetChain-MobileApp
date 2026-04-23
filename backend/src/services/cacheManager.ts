@@ -48,7 +48,6 @@ class CacheManager {
   }
 
   async clearExpiredCache(): Promise<void> {
-    const now = Date.now();
     const expiredKeys: string[] = [];
 
     for (const [key, item] of this.cache.entries()) {

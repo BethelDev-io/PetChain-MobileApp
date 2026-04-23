@@ -46,11 +46,13 @@ export interface StoredSession {
 
 type OAuthProvider = 'google' | 'apple' | 'facebook';
 
-const OAUTH_ENDPOINTS: Record<OAuthProvider, string> = {
+// OAuth endpoints — reserved for future social login; void suppresses noUnusedLocals
+const OAUTH_ENDPOINTS: Readonly<Record<OAuthProvider, string>> = {
   google: '/auth/oauth/google',
   apple: '/auth/oauth/apple',
   facebook: '/auth/oauth/facebook',
-};
+} as const;
+void OAUTH_ENDPOINTS;
 
 interface JwtPayload {
   sub: string;

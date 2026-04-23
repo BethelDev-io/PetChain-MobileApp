@@ -6,13 +6,14 @@ import {
   SafeAreaView,
   ScrollView,
   TouchableOpacity,
-  Image,
   StatusBar,
   Dimensions,
   Platform,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
 } from 'react-native';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 interface OnboardingScreenProps {
   onComplete: () => void;
@@ -181,7 +182,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete, onSkip 
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={(event) => {
+        onMomentumScrollEnd={(event: NativeSyntheticEvent<NativeScrollEvent>) => {
           const slideIndex = Math.round(
             event.nativeEvent.contentOffset.x / width
           );

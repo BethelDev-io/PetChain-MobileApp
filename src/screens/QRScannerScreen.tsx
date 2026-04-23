@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,18 +7,21 @@ import {
   TouchableOpacity,
   Alert,
   StatusBar,
-  Dimensions,
   Platform,
   PermissionsAndroid,
   Linking,
 } from 'react-native';
 
-const { width, height } = Dimensions.get('window');
-
 interface QRScannerScreenProps {
   onScanSuccess: (data: string) => void;
   onClose: () => void;
   onManualEntry: () => void;
+}
+
+/** Shape of the bar-code read event from a camera library (e.g. react-native-camera). */
+interface BarCodeReadEvent {
+  data: string;
+  type: string;
 }
 
 const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
@@ -29,7 +32,6 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanning, setScanning] = useState(false);
   const [torchEnabled, setTorchEnabled] = useState(false);
-  const scannerRef = useRef<any>(null);
 
   useEffect(() => {
     requestCameraPermission();
@@ -62,7 +64,9 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
     }
   };
 
-  const handleBarCodeRead = (event: any) => {
+  // Placeholder for camera library integration (e.g. react-native-camera).
+  // Prefixed with _ and referenced via void to satisfy noUnusedLocals.
+  const _handleBarCodeRead = (event: BarCodeReadEvent) => {
     const { data } = event;
     
     if (data && scanning) {
@@ -94,6 +98,7 @@ const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
       }
     }
   };
+  void _handleBarCodeRead; // suppress noUnusedLocals until camera library is wired up
 
   const isValidPetChainQR = (data: string): boolean => {
     try {
