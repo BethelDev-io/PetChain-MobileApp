@@ -40,6 +40,19 @@ export const validatePet = (data: Partial<PetFormData>): string[] => {
   if (data.microchipId && !/^[0-9A-Fa-f]{15}$/.test(data.microchipId)) {
     errors.push('Microchip ID must be 15 hexadecimal characters');
   }
+
+  if (data.photoUrl && !isValidImageUrl(data.photoUrl)) {
+    errors.push('Invalid photo URL format');
+  }
   
   return errors;
+};
+
+const isValidImageUrl = (url: string): boolean => {
+  try {
+    const parsed = new URL(url);
+    return /\.(jpg|jpeg|png|gif|webp)$/i.test(parsed.pathname);
+  } catch {
+    return false;
+  }
 };
