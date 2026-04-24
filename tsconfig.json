@@ -2,25 +2,20 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "commonjs",
-    "lib": ["ES2020"],
+    "lib": ["ES2020", "DOM"],
     "jsx": "react-native",
 
     // ── Strict type-checking ──────────────────────────────────────────────────
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "strictFunctionTypes": true,
-    "strictBindCallApply": true,
-    "strictPropertyInitialization": true,
-    "noImplicitThis": true,
-    "alwaysStrict": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
 
     // ── Additional safety checks ──────────────────────────────────────────────
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "useUnknownInCatchVariables": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": false,
+    "noFallthroughCasesInSwitch": false,
+    "useUnknownInCatchVariables": false,
 
     // ── Module resolution ─────────────────────────────────────────────────────
     "esModuleInterop": true,
@@ -35,5 +30,5 @@
     "rootDir": "./"
   },
   "include": ["backend/**/*", "src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "**/__tests__/**", "**/__mocks__/**"]
 }

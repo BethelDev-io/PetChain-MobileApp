@@ -175,6 +175,7 @@ export interface CreatePetRequest {
   breed?: string;
   dateOfBirth?: string;
   microchipId?: string;
+  photoUrl?: string;
   ownerId: string;
 }
 
@@ -188,6 +189,7 @@ export interface CreatePetResponse {
   breed?: string;
   dateOfBirth?: string;
   microchipId?: string;
+  photoUrl?: string;
   ownerId: string;
   createdAt: string;
   updatedAt: string;
@@ -203,6 +205,7 @@ export interface GetPetResponse {
   breed?: string;
   dateOfBirth?: string;
   microchipId?: string;
+  photoUrl?: string;
   ownerId: string;
   owner?: {
     id: string;
@@ -222,6 +225,7 @@ export interface UpdatePetRequest {
   breed?: string;
   dateOfBirth?: string;
   microchipId?: string;
+  photoUrl?: string;
 }
 
 /**

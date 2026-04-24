@@ -55,7 +55,8 @@ const _OAUTH_ENDPOINTS: Record<OAuthProvider, string> = {
   apple: '/auth/oauth/apple',
   facebook: '/auth/oauth/facebook',
 } as const;
-void _OAUTH_ENDPOINTS;
+
+export const OAUTH_ENDPOINTS = _OAUTH_ENDPOINTS;
 
 interface JwtPayload {
   sub: string;

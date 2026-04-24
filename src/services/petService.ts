@@ -2,6 +2,7 @@ import axios from 'axios';
 
 import apiClient from './apiClient';
 import { parseQRCodeData } from './qrCodeService';
+import { pickImage, compressImage, generateThumbnail, uploadToStorage } from '../utils/imageUtils';
 
 export interface PetOwnerSummary {
   id: string;
@@ -16,6 +17,7 @@ export interface Pet {
   breed?: string;
   dateOfBirth?: string;
   microchipId?: string;
+  photoUrl?: string;
   ownerId: string;
   owner?: PetOwnerSummary;
   createdAt: string;
@@ -28,6 +30,7 @@ export interface CreatePetInput {
   breed?: string;
   dateOfBirth?: string;
   microchipId?: string;
+  photoUrl?: string;
   ownerId: string;
 }
 
@@ -37,6 +40,7 @@ export interface UpdatePetInput {
   breed?: string;
   dateOfBirth?: string;
   microchipId?: string;
+  photoUrl?: string;
 }
 
 interface ApiResponse<T> {
@@ -210,6 +214,22 @@ export async function deletePet(petId: string): Promise<void> {
   }
 }
 
+export async function uploadPetPhoto(petId: string): Promise<string | null> {
+  try {
+    const imageResult = await pickImage();
+    if (!imageResult) return null;
+
+    const compressed = await compressImage(imageResult.uri);
+    const uploadResult = await uploadToStorage(compressed.uri, petId);
+    
+    await updatePet(petId, { photoUrl: uploadResult.url });
+    
+    return uploadResult.url;
+  } catch (error) {
+    throw toPetServiceError(error);
+  }
+}
+
 const petService = {
   getAllPets,
   getPetById,
@@ -217,6 +237,7 @@ const petService = {
   createPet,
   updatePet,
   deletePet,
+  uploadPetPhoto,
 };
 
 export default petService;
