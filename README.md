@@ -325,3 +325,7 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 **Status:** Version 1.0.0 — Ready for App Store & Google Play submission.
 
+## Handsoff notes
+
+<!-- handsoff-issue-1038 -->
+- #1038: [Mobile] Add account-switch isolation tests for local caches
