@@ -22,6 +22,62 @@ const APP_NAME_MAP = {
 // misconfigured — the native layer rejects the manifest outright. See issue #991.
 const RUNTIME_VERSION = `${APP_ENV}-${APP_VERSION}`;
 
+// ─── Deep / universal link policy (issue #1029) ─────────────────────────────
+//
+// Supported link routes and their parameter schemas are documented here in one
+// central place. The native layer only ever *routes* a link to the app; the JS
+// layer must validate every incoming link against this schema before acting on
+// it (see the deep-link validator). Keeping the schema next to the native
+// associatedDomains / intentFilters config ensures the two never drift.
+//
+// Each route declares:
+//   path        — the URL path (matched exactly, no wildcards)
+//   params      — allowed query params and their expected type
+//   requiresAuth— whether the route may only be opened by an authenticated user
+//   mutating    — whether opening the route can trigger a state mutation
+//
+// Security invariants enforced by the validator:
+//   • Untrusted links cannot bypass authentication (requiresAuth routes are
+//     rejected for logged-out users and replayed after sign-in).
+//   • Untrusted links cannot change accounts (no account/identity params are
+//     accepted from a link; the active session is never switched by a link).
+//   • Untrusted links cannot trigger mutations (mutating routes require an
+//     explicit in-app confirmation and a valid, unexpired signed token).
+//   • Links expire or fail safely when their resource is revoked (every
+//     resource-scoped route carries an `exp` and is re-checked server-side;
+//     revoked/expired links resolve to a safe fallback, never a mutation).
+const DEEP_LINK_ROUTES = {
+  '/pet': {
+    params: { id: 'string' },
+    requiresAuth: true,
+    mutating: false,
+  },
+  '/record': {
+    params: { id: 'string', exp: 'number' },
+    requiresAuth: true,
+    mutating: false,
+  },
+  '/share': {
+    params: { token: 'string', exp: 'number' },
+    requiresAuth: false,
+    mutating: false,
+  },
+  '/sos': {
+    params: { id: 'string', exp: 'number' },
+    requiresAuth: true,
+    mutating: false,
+  },
+  '/invite': {
+    params: { token: 'string', exp: 'number' },
+    requiresAuth: false,
+    mutating: true,
+  },
+};
+
+// Hosts that are allowed to deep-link into the app. Anything else is treated as
+// untrusted and must not be routed.
+const DEEP_LINK_ALLOWED_HOSTS = ['petchain.app', 'www.petchain.app'];
+
 module.exports = {
   expo: {
     name: APP_NAME_MAP[APP_ENV] ?? 'PetChain',
@@ -161,6 +217,9 @@ module.exports = {
     ],
     extra: {
       APP_ENV,
+      // Central deep/universal link policy consumed by the JS deep-link validator.
+      DEEP_LINK_ROUTES,
+      DEEP_LINK_ALLOWED_HOSTS,
       // API_BASE_URL resolution: explicit env > profile-specific > no fallback to localhost for prod
       API_BASE_URL:
         process.env.API_BASE_URL ||

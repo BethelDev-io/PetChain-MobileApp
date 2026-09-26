@@ -25,6 +25,7 @@ import {
   clearPersistedTimestamps,
 } from './src/services/appLockService';
 import { registerBackgroundMedicationTask } from './src/services/backgroundTaskService';
+import { validateDeepLink } from './src/services/deepLinkService';
 import errorTracking from './src/services/errorTracking';
 import navigationQueueService from './src/services/navigationQueueService';
 import {
@@ -140,8 +141,14 @@ function App() {
       const notification = await Notifications.getLastNotificationResponseAsync();
       if (notification) {
         const data = notification.notification.request.content.data;
+        // Issue #1029: validate the incoming link against the documented
+        // route/parameter schema before it is ever queued for navigation.
+        // Untrusted or malformed links are dropped here so they can never
+        // bypass auth, switch accounts, or trigger mutations.
+        const validated = validateDeepLink(data);
+        if (!validated) return;
         // Queue the deep link until app-lock verification completes
-        navigationQueueService.queueNotification(data);
+        navigationQueueService.queueNotification(validated);
       }
     };
     void checkInitialNotification();

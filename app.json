@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "scheme": "petchain",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -16,14 +17,34 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.petchain.mobile"
+      "bundleIdentifier": "app.petchain.mobile",
+      "associatedDomains": [
+        "applinks:petchain.app"
+      ]
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "app.petchain.mobile"
+      "package": "app.petchain.mobile",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "petchain.app",
+              "pathPrefix": "/"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -39,7 +60,37 @@
     ],
     "extra": {
       "APP_ENV": "development",
-      "SENTRY_DSN": ""
+      "SENTRY_DSN": "",
+      "deepLink": {
+        "scheme": "petchain",
+        "universalLinkHost": "petchain.app",
+        "routes": [
+          {
+            "path": "/pets/:petId",
+            "params": {
+              "petId": "string"
+            },
+            "requiresAuth": true,
+            "mutating": false
+          },
+          {
+            "path": "/appointments/:appointmentId",
+            "params": {
+              "appointmentId": "string"
+            },
+            "requiresAuth": true,
+            "mutating": false
+          },
+          {
+            "path": "/invite/:token",
+            "params": {
+              "token": "string"
+            },
+            "requiresAuth": false,
+            "mutating": false
+          }
+        ]
+      }
     }
   }
 }
