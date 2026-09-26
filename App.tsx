@@ -48,6 +48,27 @@ if (I18nManager.isRTL !== startupRTL) {
   I18nManager.forceRTL(startupRTL);
 }
 
+// Issue #1037: clinical forms must scale to the supported platform font-size
+// range without clipping dosage, consent, or emergency values. React Native
+// caps text scaling at `maxFontSizeMultiplier`; leaving it unbounded lets
+// accessibility sizes overflow fixed-height controls. We clamp the app-wide
+// default here so every clinical form inherits a safe ceiling, while still
+// honouring the user's preferred size up to that ceiling.
+const MAX_FONT_SIZE_MULTIPLIER = 2;
+if (typeof Text !== 'undefined' && Text.defaultProps == null) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (Text as any).defaultProps = {};
+}
+if (typeof Text !== 'undefined') {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (Text as any).defaultProps = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...((Text as any).defaultProps ?? {}),
+    maxFontSizeMultiplier: MAX_FONT_SIZE_MULTIPLIER,
+    allowFontScaling: true,
+  };
+}
+
 function App() {
   const { appReady } = useSplashGuard();
   const [updateStatus, setUpdateStatus] = React.useState<
