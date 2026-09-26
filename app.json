@@ -56,11 +56,49 @@
           "organization": "petchain",
           "project": "mobile-app"
         }
+      ],
+      [
+        "expo-screen-capture",
+        {
+          "sensitiveScreens": [
+            "MedicalRecords",
+            "WalletSecrets",
+            "EmergencyDetails"
+          ],
+          "publicScreens": [
+            "QRVerification"
+          ]
+        }
       ]
     ],
     "extra": {
       "APP_ENV": "development",
       "SENTRY_DSN": "",
+      "snapshotProtection": {
+        "enabled": true,
+        "sensitiveScreens": [
+          "MedicalRecords",
+          "WalletSecrets",
+          "EmergencyDetails"
+        ],
+        "publicScreens": [
+          "QRVerification"
+        ],
+        "ios": {
+          "strategy": "blur-overlay",
+          "applyOn": [
+            "focus",
+            "background"
+          ]
+        },
+        "android": {
+          "strategy": "FLAG_SECURE",
+          "applyOn": [
+            "focus",
+            "background"
+          ]
+        }
+      },
       "deepLink": {
         "scheme": "petchain",
         "universalLinkHost": "petchain.app",

@@ -78,6 +78,39 @@ const DEEP_LINK_ROUTES = {
 // untrusted and must not be routed.
 const DEEP_LINK_ALLOWED_HOSTS = ['petchain.app', 'www.petchain.app'];
 
+// ─── Sensitive-screen snapshot protection (issue #1036) ─────────────────────
+//
+// Medical records, wallet secrets, and emergency details must never appear in
+// OS task-switcher snapshots or screenshots. The JS layer applies per-screen
+// protection (iOS: a blur/overlay view while backgrounded; Android:
+// FLAG_SECURE via the native module), but the native manifest must also opt in
+// so protection is active from the very first frame — before any JS runs — and
+// so navigation transitions cannot briefly expose protected content.
+//
+// Android: android:excludeFromRecents is intentionally NOT set globally (that
+// would hide the whole app from the switcher, breaking public QR verification
+// flows). Instead the native module toggles FLAG_SECURE per sensitive screen.
+// The manifest only declares the permission the module needs to read the
+// current window state.
+//
+// iOS: the native module installs a snapshot-blur overlay on
+// UIApplicationDidEnterBackgroundNotification and removes it on
+// UIApplicationWillEnterForegroundNotification, so the switcher snapshot is
+// always blurred for sensitive screens. No Info.plist key is required, but we
+// keep the flag here so the JS layer and native layer agree on the policy.
+const SENSITIVE_SCREEN_PROTECTION = {
+  // Screens that must apply snapshot protection while foregrounded/backgrounded.
+  // Public QR verification screens are deliberately excluded so they remain
+  // usable and unprotected.
+  protectedRoutes: ['/records', '/wallet', '/emergency'],
+  // Routes that must remain unprotected (public QR verification).
+  publicRoutes: ['/verify', '/share'],
+  // iOS: blur overlay applied on backgrounding.
+  ios: { blurOnBackground: true },
+  // Android: FLAG_SECURE applied per sensitive screen.
+  android: { flagSecure: true },
+};
+
 module.exports = {
   expo: {
     name: APP_NAME_MAP[APP_ENV] ?? 'PetChain',
@@ -200,47 +233,6 @@ module.exports = {
       //   Injects BackupExclusion.swift into the Xcode target and patches
       //   AppDelegate to call excludeSensitiveDirectoriesFromBackup() at
       //   launch.  This sets NSURLIsExcludedFromBackupKey=true on:
-      //     • Library/Application Support/  (expo-sqlite petchain.db)
-      //     • Library/Preferences/          (AsyncStorage / RNCAsyncStorage)
-      //     • Documents/                    (expo-file-system documentDirectory)
-      //
-      // expo-secure-store (Keychain/Keystore) is NOT backed up by any OS
-      // transport regardless of these settings — no action needed there.
-      //
-      // Source files:
-      //   plugins/withAndroidBackupExclusion.js
-      //   plugins/withIosBackupExclusion.js
-      //   android-config/backup_rules.xml
-      //   android-config/data_extraction_rules.xml
-      './plugins/withAndroidBackupExclusion.js',
-      './plugins/withIosBackupExclusion.js',
-    ],
-    extra: {
-      APP_ENV,
-      // Central deep/universal link policy consumed by the JS deep-link validator.
-      DEEP_LINK_ROUTES,
-      DEEP_LINK_ALLOWED_HOSTS,
-      // API_BASE_URL resolution: explicit env > profile-specific > no fallback to localhost for prod
-      API_BASE_URL:
-        process.env.API_BASE_URL ||
-        (APP_ENV === 'production'
-          ? process.env.PROD_API_URL // Production: require explicit PROD_API_URL, no fallback
-          : APP_ENV === 'staging'
-            ? (process.env.STAGING_API_URL ?? 'https://staging.petchain.app/api')
-            : (process.env.API_BASE_URL ?? 'http://localhost:3000/api')), // Dev: localhost default
-      STAGING_API_URL: process.env.STAGING_API_URL ?? 'https://staging.petchain.app/api',
-      PROD_API_URL: process.env.PROD_API_URL ?? 'https://api.petchain.app/api',
-      API_TIMEOUT: process.env.API_TIMEOUT ?? '10000',
-      SENTRY_DSN: process.env.SENTRY_DSN ?? '',
-      SENTRY_ENABLE_IN_DEV: process.env.SENTRY_ENABLE_IN_DEV ?? 'false',
-      MAX_CACHE_SIZE: process.env.MAX_CACHE_SIZE ?? '50',
-      PAGINATION_LIMIT: process.env.PAGINATION_LIMIT ?? '20',
-      IOS_STORE_URL: process.env.IOS_STORE_URL ?? 'https://apps.apple.com/app/petchain/id000000000',
-      ANDROID_STORE_URL:
-        process.env.ANDROID_STORE_URL ??
-        'https://play.google.com/store/apps/details?id=app.petchain.mobile',
-      MIN_NATIVE_VERSION_IOS: process.env.MIN_NATIVE_VERSION_IOS ?? '1.0.0',
-      MIN_NATIVE_VERSION_ANDROID: process.env.MIN_NATIVE_VERSION_ANDROID ?? '1.0.0',
-    },
-  },
-};
+      //     • Library/Application Support/  (expo-sqlite petchain.db
+
+/* … truncated 2198 chars — edit only what you need near the top … */
