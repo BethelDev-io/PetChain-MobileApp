@@ -22,6 +22,97 @@ const APP_NAME_MAP = {
 // misconfigured — the native layer rejects the manifest outright. See issue #991.
 const RUNTIME_VERSION = `${APP_ENV}-${APP_VERSION}`;
 
+// ─── App-store privacy declarations (issue #1041) ──────────────────────────
+//
+// These declarations are versioned beside the release config so that CI can
+// verify them against the shipped capabilities (permissions, plugins, and
+// runtime data flows). The iOS privacy manifest (PrivacyInfo.xcprivacy) and
+// the Android data-safety inputs live under `privacy/` and are referenced
+// here so a single source of truth drives both the native build and the
+// automated verification in `scripts/verifyPrivacyManifest.js`.
+//
+// Each entry maps a declared data type to the code path and runtime behavior
+// that produces it. `requiredReasonAPIs` lists the Apple required-reason API
+// categories the app actually calls; CI fails if a manifest omits one of
+// these or if a permission is added without a matching declaration.
+const PRIVACY_DECLARATIONS = {
+  // iOS privacy manifest + Android data-safety inputs, versioned beside release config.
+  iosManifestPath: './privacy/PrivacyInfo.xcprivacy',
+  androidDataSafetyPath: './privacy/android-data-safety.json',
+  // Apple required-reason API categories the app calls (must be declared in the manifest).
+  requiredReasonAPIs: [
+    'NSPrivacyAccessedAPICategoryUserDefaults',
+    'NSPrivacyAccessedAPICategoryFileTimestamp',
+    'NSPrivacyAccessedAPICategoryDiskSpace',
+  ],
+  // Declared data collection, mapped to code + runtime behavior.
+  collectedDataTypes: [
+    {
+      type: 'NSPrivacyCollectedDataTypeCamera',
+      androidType: 'Photos and videos',
+      linked: true,
+      tracking: false,
+      purpose: 'QR scanning for pet identification and medical record sharing',
+      code: 'src/screens/ScanScreen.tsx',
+      runtime: 'Camera permission requested on scan screen mount',
+    },
+    {
+      type: 'NSPrivacyCollectedDataTypePhotosorVideos',
+      androidType: 'Photos and videos',
+      linked: true,
+      tracking: false,
+      purpose: 'Pet profile photo upload',
+      code: 'src/screens/PetProfileScreen.tsx',
+      runtime: 'Photo library permission requested on profile edit',
+    },
+    {
+      type: 'NSPrivacyCollectedDataTypeCoarseLocation',
+      androidType: 'Location',
+      linked: true,
+      tracking: false,
+      purpose: 'Emergency SOS location sharing',
+      code: 'src/services/location.ts',
+      runtime: 'Location permission requested when SOS is triggered',
+    },
+    {
+      type: 'NSPrivacyCollectedDataTypePreciseLocation',
+      androidType: 'Location',
+      linked: true,
+      tracking: false,
+      purpose: 'Emergency SOS location sharing',
+      code: 'src/services/location.ts',
+      runtime: 'Location permission requested when SOS is triggered',
+    },
+    {
+      type: 'NSPrivacyCollectedDataTypeHealth',
+      androidType: 'Health and fitness',
+      linked: true,
+      tracking: false,
+      purpose: 'Pet health records sync',
+      code: 'src/services/health.ts',
+      runtime: 'Health data read/write on record sync',
+    },
+    {
+      type: 'NSPrivacyCollectedDataTypeDeviceID',
+      androidType: 'Device or other IDs',
+      linked: true,
+      tracking: false,
+      purpose: 'Push notification delivery',
+      code: 'src/services/pushNotifications.ts',
+      runtime: 'Push token registered on login',
+    },
+    {
+      type: 'NSPrivacyCollectedDataTypeUserID',
+      androidType: 'Personal info',
+      linked: true,
+      tracking: false,
+      purpose: 'Account authentication',
+      code: 'src/services/api.ts',
+      runtime: 'Auth token attached to API requests',
+    },
+  ],
+};
+
 module.exports = {
   expo: {
     name: APP_NAME_MAP[APP_ENV] ?? 'PetChain',
@@ -68,6 +159,21 @@ module.exports = {
       },
       // App Groups for widget data sharing
       appGroups: ['group.app.petchain.mobile'],
+      // iOS privacy manifest (issue #1041) — versioned beside release config.
+      privacyManifests: {
+        NSPrivacyTracking: false,
+        NSPrivacyTrackingDomains: [],
+        NSPrivacyCollectedDataTypes: PRIVACY_DECLARATIONS.collectedDataTypes.map((d) => ({
+          NSPrivacyCollectedDataType: d.type,
+          NSPrivacyCollectedDataTypeLinked: d.linked,
+          NSPrivacyCollectedDataTypeTracking: d.tracking,
+          NSPrivacyCollectedDataTypePurposes: ['NSPrivacyCollectedDataTypePurposeAppFunctionality'],
+        })),
+        NSPrivacyAccessedAPITypes: PRIVACY_DECLARATIONS.requiredReasonAPIs.map((api) => ({
+          NSPrivacyAccessedAPIType: api,
+          NSPrivacyAccessedAPITypeReasons: ['CA92.1'],
+        })),
+      },
     },
     android: {
       adaptiveIcon: {
@@ -182,6 +288,8 @@ module.exports = {
         'https://play.google.com/store/apps/details?id=app.petchain.mobile',
       MIN_NATIVE_VERSION_IOS: process.env.MIN_NATIVE_VERSION_IOS ?? '1.0.0',
       MIN_NATIVE_VERSION_ANDROID: process.env.MIN_NATIVE_VERSION_ANDROID ?? '1.0.0',
+      // Privacy declarations exposed to CI verification (issue #1041).
+      PRIVACY_DECLARATIONS,
     },
   },
 };
