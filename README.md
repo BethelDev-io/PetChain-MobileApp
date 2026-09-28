@@ -329,3 +329,6 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 <!-- handsoff-issue-1038 -->
 - #1038: [Mobile] Add account-switch isolation tests for local caches
+
+<!-- handsoff-issue-1091 -->
+- #1091: [Mobile] Add vet credential expiry warning before record submission
