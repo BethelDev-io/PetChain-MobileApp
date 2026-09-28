@@ -5,6 +5,12 @@
  * on execution order. These helpers give each suite an isolated namespace and
  * reset it deterministically, so suites pass in random order and in-band mode
  * without weakening production behavior.
+ *
+ * This module also provides a fake-clock lifecycle harness for app-lock
+ * timeout policy tests. It tracks background duration with a monotonic clock
+ * so wall-clock changes (manual clock changes, timezone/DST shifts) cannot
+ * bypass the lock, and it re-locks sensitive screens on resume once the
+ * configured timeout has elapsed.
  */
 
 import { randomUUID } from 'crypto';
@@ -165,4 +171,136 @@ export function setupTestIsolation(
   const namespace = createTestNamespace(suiteName);
   const tracker = createIsolationTracker(namespace, db, storage);
   return { namespace, tracker };
+}
+
+/**
+ * Explicit app-lock timeout policy. The lock re-engages after the app has been
+ * backgrounded for at least `timeoutMs` of monotonic elapsed time. Keeping the
+ * threshold in one place makes the policy testable and consistent across
+ * background, kill, and resume transitions.
+ */
+export type AppLockTimeoutPolicy = {
+  /** Background duration (ms) after which the lock must re-engage. */
+  timeoutMs: number;
+};
+
+export const DEFAULT_APP_LOCK_TIMEOUT_POLICY: AppLockTimeoutPolicy = {
+  timeoutMs: 30_000,
+};
+
+/**
+ * Monotonic clock source. `now()` must never move backwards and must not be
+ * affected by wall-clock changes, so tests can advance it deterministically.
+ */
+export type MonotonicClock = {
+  now: () => number;
+};
+
+/**
+ * A controllable monotonic clock for fake-clock lifecycle tests. `advance`
+ * moves time forward only; `setWallClock` simulates a manual clock change or
+ * timezone/DST shift without touching monotonic time.
+ */
+export type FakeClock = MonotonicClock & {
+  /** Advance monotonic time by `ms` (must be >= 0). */
+  advance: (ms: number) => void;
+  /** Simulate a wall-clock change; must not affect monotonic time. */
+  setWallClock: (epochMs: number) => void;
+  /** Current simulated wall-clock time (for assertions only). */
+  wallClock: () => number;
+};
+
+/**
+ * Create a fake monotonic clock seeded at `startMs`. Wall-clock changes are
+ * tracked separately so tests can prove they do not bypass the lock.
+ */
+export function createFakeClock(startMs = 0): FakeClock {
+  let monotonic = startMs;
+  let wall = startMs;
+
+  return {
+    now: () => monotonic,
+    advance: (ms: number) => {
+      if (ms < 0) {
+        throw new Error('FakeClock.advance requires a non-negative duration');
+      }
+      monotonic += ms;
+      wall += ms;
+    },
+    setWallClock: (epochMs: number) => {
+      wall = epochMs;
+    },
+    wallClock: () => wall,
+  };
+}
+
+/**
+ * Sensitive screens that must be re-locked on resume once the timeout elapses.
+ */
+export const SENSITIVE_SCREENS = [
+  'Wallet',
+  'Settings',
+  'Keychain',
+  'Transactions',
+] as const;
+
+export type SensitiveScreen = (typeof SENSITIVE_SCREENS)[number];
+
+export type AppLockState = {
+  /** Whether the lock is currently engaged. */
+  locked: boolean;
+  /** Screen that was active when the app was backgrounded. */
+  screen: SensitiveScreen;
+};
+
+/**
+ * Minimal app-lock lifecycle harness used by the timeout policy tests. It
+ * records the monotonic timestamp at background time and re-locks on resume
+ * when the elapsed monotonic duration meets or exceeds the policy timeout.
+ */
+export type AppLockLifecycle = {
+  /** Current lock state. */
+  state: () => AppLockState;
+  /** Record backgrounding of a sensitive screen. */
+  background: (screen: SensitiveScreen) => void;
+  /** Resume the app; returns true when the lock re-engaged. */
+  resume: () => boolean;
+  /** Unlock the app (e.g. after successful auth). */
+  unlock: () => void;
+};
+
+/**
+ * Create an app-lock lifecycle harness bound to a monotonic clock and policy.
+ * Background duration is measured with the monotonic clock only, so wall-clock
+ * changes cannot bypass the lock.
+ */
+export function createAppLockLifecycle(
+  clock: MonotonicClock,
+  policy: AppLockTimeoutPolicy = DEFAULT_APP_LOCK_TIMEOUT_POLICY,
+): AppLockLifecycle {
+  let locked = false;
+  let screen: SensitiveScreen = 'Wallet';
+  let backgroundedAt: number | null = null;
+
+  return {
+    state: () => ({ locked, screen }),
+    background: (nextScreen: SensitiveScreen) => {
+      screen = nextScreen;
+      backgroundedAt = clock.now();
+    },
+    resume: () => {
+      if (backgroundedAt === null) {
+        return locked;
+      }
+      const elapsed = clock.now() - backgroundedAt;
+      backgroundedAt = null;
+      if (elapsed >= policy.timeoutMs) {
+        locked = true;
+      }
+      return locked;
+    },
+    unlock: () => {
+      locked = false;
+    },
+  };
 }
