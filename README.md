@@ -330,6 +330,12 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 <!-- handsoff-issue-1021 -->
 - #1021: [Mobile] Add encrypted health-record export and import
 
+<!-- handsoff-issue-1030 -->
+- #1030: [Mobile] Add duplicate-pet detection before registration
+
+<!-- handsoff-issue-1031 -->
+- #1031: [Mobile] Add vaccination-certificate sharing preview
+
 <!-- handsoff-issue-1038 -->
 - #1038: [Mobile] Add account-switch isolation tests for local caches
 
