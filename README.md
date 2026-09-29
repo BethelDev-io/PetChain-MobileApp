@@ -327,6 +327,9 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 ## Handsoff notes
 
+<!-- handsoff-issue-1021 -->
+- #1021: [Mobile] Add encrypted health-record export and import
+
 <!-- handsoff-issue-1038 -->
 - #1038: [Mobile] Add account-switch isolation tests for local caches
 
